@@ -11,6 +11,7 @@ const postSchema = mongoose.Schema(
       required: true,
     },
     imagePath: { type: String, required: true },
+    cloudinary_id: { type: String, required: true },
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

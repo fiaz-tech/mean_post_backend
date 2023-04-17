@@ -1,34 +1,7 @@
 import asyncHandler from 'express-async-handler'
 import Posts from '../models/postModel.js'
-import multer from 'multer'
 
-
-
-const MIME_TYPE_MAP = {
-  "image/png": "png",
-  "image/jpeg": "jpg",
-  "image/jpg": "jpg"
-};
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const isValid = MIME_TYPE_MAP[file.mimetype];
-    let error = new Error("Invalid mime type");
-    if (isValid) {
-      error = null;
-    }
-    cb(error, "backend/imageuploads");
-  },
-  filename: (req, file, cb) => {
-    const name = file.originalname
-      .toLowerCase()
-      .split(" ")
-      .join("-");
-    const ext = MIME_TYPE_MAP[file.mimetype];
-    cb(null, name + "-" + Date.now() + "." + ext);
-  }
-});
-
+import {cloudinary} from '../config/cloudinary.js'
 
 
 
@@ -38,14 +11,16 @@ const storage = multer.diskStorage({
 // @access  Public
 const createPost = asyncHandler(async (req, res) => {
 
-  const url = req.protocol + "://" + req.get("host");
-  const imagePath = url + "/imageuploads/" + req.file.filename
+  const result = await cloudinary.uploader.upload(req.file.path)
 
   const { title, content } = req.body
   const user = req.user._id
 
+  const imagePath = result.secure_url
+  const cloudinary_id  = result.public_id
+
   const post = await Posts.create({
-    title, content, imagePath, user  })
+    title, content, imagePath, cloudinary_id, user  })
 
   if (post) {
     res.status(201).json({
@@ -112,12 +87,15 @@ const getPostById = asyncHandler(async (req, res) => {
 
 // @desc    Delete post
 // @route   DELETE /api/posts/:id
-// @access  Private/Admin
+// @access  Private
 const deletePost= asyncHandler(async (req, res) => {
+  
+  const post = await Posts.findById(req.params.id)
+  await cloudinary.uploader.destroy(post.cloudinary_id)
+  const postDelete = await Posts.findByIdAndDelete(req.params.id)
 
-  const postDelete =await Posts.findByIdAndDelete(req.params.id)
   if(postDelete){
-    res.status(201).json({message: "Post deleted"})
+    res.status(201).json({message: "Post deleted successfully"})
   }else {
     res.status(404)
     throw new Error('Post delete failed')
@@ -130,32 +108,30 @@ const deletePost= asyncHandler(async (req, res) => {
 
 // @desc    Update post
 // @route   PUT /api/posts/:id
-// @access  Private/Admin
+// @access  Private
 const updatePost = asyncHandler(async (req, res) => {
-
-  let imagePath = req.body.imagePath;
-    if (req.file) {
-      const url = req.protocol + "://" + req.get("host");
-      imagePath = url + "/imageuploads/" + req.file.filename
-    }
-
 
   const post = await Posts.findById(req.params.id)
 
+  await cloudinary.uploader.destroy(post.cloudinary_id)
+
+  const result = await cloudinary.uploader.upload(req.file.path)
+
   if (post) {
 
-    post.title = req.body.title || post.title
-    post.content = req.body.content || post.content
-    post.imagePath =  imagePath || post.imagePath
+      post.title = req.body.title || post.title
+      post.content = req.body.content || post.content
+      post.imagePath = result.secure_url || post.imagePath
+      post.cloudinary_id =  result.public_id || post.cloudinary_id
 
     const updatedPost = await post.save()
 
     res.json({
-      //_id: updatedPost._id,
       title: updatedPost.title,
       content: updatedPost.content,
       imagePath: updatePost.imagePath,
-      //user: updatePost.user._id
+      cloudinary_id: updatePost.cloudinary_id,
+      
     })
   } else {
     console.log("enteredError")
@@ -171,7 +147,6 @@ export {
  getPostById,
  deletePost,
  updatePost,
- storage,
 }
 
 

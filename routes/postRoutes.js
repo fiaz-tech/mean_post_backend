@@ -4,11 +4,11 @@ import {
   getPostById,
   deletePost,
   updatePost,
-  storage,
 
  } from '../controllers/postController.js'
  import { protect } from '../middleware/authMiddleware.js'
- import multer from 'multer'
+ import  upload from '../middleware/multer.js'
+
 
  import express from 'express'
 const router = express.Router()
@@ -16,11 +16,11 @@ const router = express.Router()
 
 
 router.route('/')
-.post(protect, multer({storage: storage}).single('image'), createPost)
+.post(protect, upload.single('image'), createPost)
 .get(getPosts)
 
 
-router.route('/:id/update').put(protect, multer({storage: storage}).single('image'), updatePost)
+router.route('/:id/update').put(protect, upload.single('image'), updatePost)
 
 router.route('/:id')
 .get(getPostById)
